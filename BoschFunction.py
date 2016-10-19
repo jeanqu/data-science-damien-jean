@@ -11,11 +11,11 @@ def filterWithoutFirstLine(line):
 	return line[0] != "Id"
 
 def filter_select_some_random_values(line):
-	return random.randint(1,10) == 1
+	return random.randint(1,20) == 1
 
 def mapTo_FEATURES_id_value(line):
-	line_return = [None] * (len(line) - 1)
-	for i in range(0, (len(line) - 1)):
+	line_return = [None] * nbFeatures_broadcast.value
+	for i in range(0, nbFeatures_broadcast.value):
 		line_return[i] = (list_features_broadcast.value[i], (line[0], line[i+1]))
 	return (line_return)
 
