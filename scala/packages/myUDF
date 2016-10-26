@@ -1,6 +1,4 @@
-// jar cf myUDF.jar myUDF
-
-package com.myUDF
+//package com.myUDF
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.expressions.{MutableAggregationBuffer, UserDefinedAggregateFunction}
@@ -10,7 +8,7 @@ import scala.collection.mutable.ArrayBuffer
 import org.apache.spark.unsafe.types.UTF8String
 
 object GroupConcat extends UserDefinedAggregateFunction {
-    def inputSchema = new StructType().add("x", StringType)
+    def inputSchema = new StructType().add("feature", StringType).add("value", StringType)
     def bufferSchema = new StructType().add("buff", ArrayType(StringType))
     def dataType = StringType
     def deterministic = true 
@@ -21,13 +19,18 @@ object GroupConcat extends UserDefinedAggregateFunction {
 
     def update(buffer: MutableAggregationBuffer, input: Row) = {
       if (!input.isNullAt(0)) 
-        buffer.update(0, buffer.getSeq[String](0) :+ input.getString(0))
+      {
+        if(input.getString(1) != "")
+        {
+          buffer.update(0, buffer.getSeq[String](0) :+ input.getString(0))
+        }
+      }
     }
 
-    def merge(buffer1: MutableAggregationBuffer, buffer2: Row) = {
-      buffer1.update(0, buffer1.getSeq[String](0) ++ buffer2.getSeq[String](0))
+    def merge(buffer1: MutableAggregationBuffer, input: Row) = {
+      buffer1.update(0, buffer1.getSeq[String](0) ++ input.getSeq[String](0))
     }
 
     def evaluate(buffer: Row) = UTF8String.fromString(
-      buffer.getSeq[String](0).mkString(","))
+      buffer.getSeq[String](0).mkString(", "))
 }
