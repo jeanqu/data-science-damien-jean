@@ -7,6 +7,8 @@ import org.apache.spark.sql.types._
 import scala.collection.mutable.ArrayBuffer
 import org.apache.spark.unsafe.types.UTF8String
 
+
+//Concatène les features non vides
 object GroupConcat extends UserDefinedAggregateFunction {
     def inputSchema = new StructType().add("feature", StringType).add("value", StringType)
     def bufferSchema = new StructType().add("buff", ArrayType(StringType))
@@ -33,4 +35,46 @@ object GroupConcat extends UserDefinedAggregateFunction {
 
     def evaluate(buffer: Row) = UTF8String.fromString(
       buffer.getSeq[String](0).mkString(", "))
+}
+
+object countError extends UserDefinedAggregateFunction {
+ 
+  // Input Data Type Schema
+  def inputSchema: StructType = StructType(Array(StructField("prediction", DoubleType), StructField("response", StringType)))
+ 
+  // Intermediate Schema
+  def bufferSchema = StructType(Array(StructField("error", LongType),StructField("cnt", LongType)))
+ 
+  // Returned Data Type .
+  def dataType: DataType = DoubleType
+ 
+  // Self-explaining
+  def deterministic = true
+ 
+  // This function is called whenever key changes
+  def initialize(buffer: MutableAggregationBuffer) = {
+    buffer(0) = 0L // set error to zero
+    buffer(1) = 0L // set count to zero
+  }
+ 
+  // Iterate over each entry of a group
+  def update(buffer: MutableAggregationBuffer, input: Row) = {
+    if(input.getDouble(0) != input.getString(1).toDouble)
+    {
+      buffer(0) = buffer.getLong(0) + 1
+    }
+    buffer(1) = buffer.getLong(1) + 1
+  }
+ 
+  // Merge two partial aggregates
+  def merge(buffer1: MutableAggregationBuffer, buffer2: Row) = {
+    buffer1(0) = buffer1.getLong(0) + buffer2.getLong(0)
+    buffer1(1) = buffer1.getLong(1) + buffer2.getLong(1)
+  }
+ 
+  // Called after all the entries are exhausted.
+  def evaluate(buffer: Row) = {
+    buffer.getLong(0).toDouble/buffer.getLong(1).toDouble
+  }
+ 
 }
