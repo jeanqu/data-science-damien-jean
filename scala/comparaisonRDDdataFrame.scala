@@ -102,7 +102,7 @@ val nbFeatures_broadcast_num = sc.broadcast(nb_feature_num)
 //RDD
 val RDDnumeric_ID_response = RDDnumeric3.map(line => (line(0), line(nbFeatures_broadcast_num.value-1)))
 
-val RDD_ID_allvalues = RDD1.map(line => (line(0), line.slice(1, nbFeatures_broadcast.value)))
+val RDD_ID_allvalues = RDD1.map(line => ("a", line.slice(1, nbFeatures_broadcast.value)))
 
 val RDD_ID_allvalues_response = RDD_ID_allvalues.join(RDDnumeric_ID_response).persist(StorageLevel.MEMORY_AND_DISK_SER)
 
@@ -117,3 +117,8 @@ val DF_ID_allFeatures = spark.read.load("DF_all_datas")
 val df_ID_response_allFeatures = DF_ID_response.join(DF_ID_allFeatures, DF_ID_response("Id") === DF_ID_allFeatures("Id"))
 
 val df_partitionned = df_ID_response_allFeatures.repartition($"L0_S1_F25", 64)
+
+
+
+
+val dataRDD = sc.parallelize(data, 2)

@@ -37,44 +37,57 @@ object GroupConcat extends UserDefinedAggregateFunction {
       buffer.getSeq[String](0).mkString(", "))
 }
 
-object countError extends UserDefinedAggregateFunction {
- 
-  // Input Data Type Schema
-  def inputSchema: StructType = StructType(Array(StructField("prediction", DoubleType), StructField("response", StringType)))
- 
-  // Intermediate Schema
-  def bufferSchema = StructType(Array(StructField("error", LongType),StructField("cnt", LongType)))
- 
-  // Returned Data Type .
-  def dataType: DataType = DoubleType
- 
-  // Self-explaining
-  def deterministic = true
- 
-  // This function is called whenever key changes
-  def initialize(buffer: MutableAggregationBuffer) = {
-    buffer(0) = 0L // set error to zero
-    buffer(1) = 0L // set count to zero
-  }
- 
-  // Iterate over each entry of a group
-  def update(buffer: MutableAggregationBuffer, input: Row) = {
-    if(input.getDouble(0) != input.getString(1).toDouble)
-    {
-      buffer(0) = buffer.getLong(0) + 1
+object simpleConcat extends UserDefinedAggregateFunction {
+    def inputSchema = new StructType().add("feature", StringType)
+    def bufferSchema = new StructType().add("buff", ArrayType(StringType))
+    def dataType = StringType
+    def deterministic = true 
+
+    def initialize(buffer: MutableAggregationBuffer) = {
+      buffer.update(0, ArrayBuffer.empty[String])
     }
-    buffer(1) = buffer.getLong(1) + 1
-  }
- 
-  // Merge two partial aggregates
-  def merge(buffer1: MutableAggregationBuffer, buffer2: Row) = {
-    buffer1(0) = buffer1.getLong(0) + buffer2.getLong(0)
-    buffer1(1) = buffer1.getLong(1) + buffer2.getLong(1)
-  }
- 
-  // Called after all the entries are exhausted.
-  def evaluate(buffer: Row) = {
-    buffer.getLong(0).toDouble/buffer.getLong(1).toDouble
-  }
- 
+
+    def update(buffer: MutableAggregationBuffer, input: Row) = {
+      if (!input.isNullAt(0)) 
+      {
+        buffer.update(0, buffer.getSeq[String](0) :+ input.getString(0))
+      }
+    }
+
+    def merge(buffer1: MutableAggregationBuffer, input: Row) = {
+      buffer1.update(0, buffer1.getSeq[String](0) ++ input.getSeq[String](0))
+    }
+
+    def evaluate(buffer: Row) = UTF8String.fromString(
+      buffer.getSeq[String](0).mkString(", "))
+}
+
+//A FAIRE:
+object countDifferentElements extends UserDefinedAggregateFunction {
+    def inputSchema = new StructType().add("feature", StringType)
+    def bufferSchema = new StructType().add("buff", ArrayType(StringType))
+    def dataType = DoubleType
+    def deterministic = true 
+
+    def initialize(buffer: MutableAggregationBuffer) = {
+      buffer.update(0, ArrayBuffer.empty[String])
+    }
+
+    def update(buffer: MutableAggregationBuffer, input: Row) = {
+      if (!input.isNullAt(0)) 
+      {
+        if(!buffer.getSeq[String](0).contains(input.getString(0)))
+        {
+          buffer.update(0, buffer.getSeq[String](0) :+ input.getString(0))
+        }
+      }
+    }
+
+    def merge(buffer1: MutableAggregationBuffer, input: Row) = {
+      buffer1.update(0, buffer1.getSeq[String](0) ++ input.getSeq[String](0))
+    }
+
+    def evaluate(buffer: Row) = {
+      buffer.getSeq[String](0).length.toDouble
+    }
 }

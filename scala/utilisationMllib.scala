@@ -43,7 +43,11 @@ val features_numeric2_brodcast = sc.broadcast(features_numeric2)
 val nb_feature_num = features_numeric2.length
 val nbFeatures_broadcast_num = sc.broadcast(nb_feature_num)
 
-val RDDnumeric_ID_response_index = RDDnumeric4.map(line => (line._1(0), line._1(nbFeatures_broadcast_num.value-1), line._2))
+val RDDnumeric_id_feature_response_value = RDDnumeric3.map(line => mapTo_id_feature_response_value(line, nbFeatures_broadcast_num.value, features_numeric2_brodcast.value))
+val RDDnumeric_all_id_feature_response_value = RDDnumeric_id_feature_response_value.flatMap(element => element)
+val DFnumeric_id_feature_response_value = RDDnumeric_all_id_feature_response_value.toDF("Id", "feature", "response", "value")
+
+val RDDnumeric_ID_response_index = RDDnumeric4.map(line => (line._1(0), line._1(nbFeatures_broadcast_num.value-1).toDouble, line._2))
 
 val DF_ID_response_index = RDDnumeric_ID_response_index.toDF("Id", "response", "index")
 
@@ -94,14 +98,18 @@ val RDDnumeric_ID_response_index_test = RDDnumeric4_test.map(line => (line._1(0)
 val DF_ID_response_index_test = RDDnumeric_ID_response_index_test.toDF("Id", "response", "index")
 
 
-//RANDOM FOREST
+//ALGORITHME TEST
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.classification.{RandomForestClassificationModel, RandomForestClassifier}
 import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
 import org.apache.spark.ml.feature.{IndexToString, StringIndexer, VectorIndexer}
 
+import org.apache.spark.ml.feature.{OneHotEncoder, StringIndexer}
+
 import org.apache.spark.ml.feature.VectorAssembler
 import org.apache.spark.ml.linalg.Vectors
+
+
 
 //val data = DF_id_response_patternFeatureArray
 
@@ -117,44 +125,84 @@ val categoricalFeatColNames = list_features_broadcast.value.drop(1)
 val indexer = new StringIndexer().setInputCol("value").setOutputCol("value_index")
 val indexed = indexer.fit(DF_three_columns).transform(DF_three_columns)
 
-
 val DF_all_Index_Value = indexed.groupBy("Id").pivot("feature", categoricalFeatColNames).sum("value_index")
 val DF_all_Index_Value2 = DF_all_Index_Value.repartition(64)
 //val df_ID_response_allFeatures = DF_ID_response_index.join(DF_all_Index_Value2, DF_ID_response_index("Id") === DF_all_Index_Value2("Id"))
 val df_ID_response_allFeatures = DF_ID_response_index.join(DF_all_Index_Value2, Seq("Id"))
 
-val assembler = new VectorAssembler().setInputCols(categoricalFeatColNames).setOutputCol("ListFeatures")
+val assembler = new VectorAssembler().setInputCols(categoricalFeatColNames).setOutputCol("features")
 
 val data = assembler.transform(df_ID_response_allFeatures)
 
-val data2 = data.select($"Id", $"response", $"ListFeatures")
+val data2 = data.select($"Id", $"response", $"features")
 
 val trainingData_testData = data2.randomSplit(Array(0.7, 0.3))
-trainingData_testData(0).toDF("Id", "response", "ListFeatures").cache()
-trainingData_testData(1).toDF("Id", "response", "ListFeatures").cache()
-val trainingData = trainingData_testData(0).toDF("Id", "response", "ListFeatures").cache()
-val testData = trainingData_testData(1).toDF("Id", "response", "ListFeatures").cache()
+val trainingData = trainingData_testData(0).toDF("Id", "response", "features").cache()
+val testData = trainingData_testData(1).toDF("Id", "response", "features").cache()
 
-trainingData.count()
-testData.count()
+val taData = trainingData.toDF()
+val teData = testData.toDF()
 
-
-//TEST: ne marche pas car pas de variable "Réponse"
-//val indexed_test = indexer.fit(DF_three_columns_test).transform(DF_three_columns_test)
-
-//val DF_all_Index_Value_test = indexed_test.groupBy("Id").pivot("feature", categoricalFeatColNames).sum("value_index")
-//val DF_all_Index_Value2_test = DF_all_Index_Value_test.repartition(64)
-//val input_test = DF_ID_response_index_test.join(DF_all_Index_Value2_test, DF_ID_response_index_test("Id") === DF_all_Index_Value2_test("Id"))
-
-//val assembler = new VectorAssembler().setInputCols(categoricalFeatColNames).setOutputCol("ListFeatures")
-
-//val input = assembler.transform(df_ID_response_allFeatures_test)
+taData.count()
+teData.count()
 
 
+//StringIndexer par colonne: trop long
+val DF_all_Columns = spark.read.load("DF_all_datas")
 
-val labelIndexer = new StringIndexer().setInputCol("response").setOutputCol("indexedLabel").fit(trainingData)
+val transformers: Array[org.apache.spark.ml.PipelineStage] = DF_all_Columns.drop("Id").columns.map(cname => new StringIndexer().setInputCol(cname).setOutputCol(s"${cname}_index"))
+val assembler  = new VectorAssembler().setInputCols(DF_all_Columns.drop("Id").columns.map(cname => s"${cname}_index")).setOutputCol("features")
+val stages = transformers :+ assembler
+val pipeline1 = new Pipeline().setStages(stages)
 
-val featureIndexer = new VectorIndexer().setInputCol("ListFeatures").setOutputCol("indexedFeatures").setMaxCategories(30).fit(trainingData)
+val model = pipeline1.fit(DF_all_Columns)
+
+val data = model.transform(DF_all_Columns)
+
+val data_response = data.join(DF_ID_response_index, Seq("Id"))
+
+data_response.write.save("dataResponse50.parquet")
+
+
+val trainingData_testData = data_response.select($"Id", $"response", $"features").toDF("Id", "label", "features").randomSplit(Array(0.7, 0.3))
+val trainingData = trainingData_testData(0).cache()
+val testData = trainingData_testData(1).cache()
+
+val taData = trainingData.toDF()
+val teData = testData.toDF()
+
+taData.count()
+teData.count()
+
+//Apprentissage valeurs numériques
+val numericalFeatColNames = features_numeric2_brodcast.value.drop(1).dropRight(1)
+
+val DFnumeric_allcolumn_Id_response_Value = DFnumeric_id_feature_response_value.groupBy("Id", "response").pivot("feature", numericalFeatColNames).sum("value")
+
+val assembler = new VectorAssembler().setInputCols(numericalFeatColNames).setOutputCol("features")
+
+val data_numeric = assembler.transform(DFnumeric_allcolumn_Id_response_Value).select("Id", "response", "features").toDF("Id", "label", "features").persist(StorageLevel.MEMORY_AND_DISK_SER )
+
+val trainingData_testData = data_numeric.randomSplit(Array(0.7, 0.3))
+val trainingData = trainingData_testData(0).toDF().cache()
+val testData = trainingData_testData(1).toDF().cache()
+
+val taData = trainingData.toDF()
+val teData = testData.toDF()
+
+taData.count()
+teData.count()
+
+
+
+//val DF_all_Columns = DF_three_columns.groupBy("Id").pivot("feature", categoricalFeatColNames).agg(simpleConcat($"value"))
+
+
+//RADOM FOREST
+
+val labelIndexer = new StringIndexer().setInputCol("label").setOutputCol("indexedLabel").fit(taData)
+
+val featureIndexer = new VectorIndexer().setInputCol("features").setOutputCol("indexedFeatures").setMaxCategories(5).fit(taData)
 
 val rf = new RandomForestClassifier().setLabelCol("indexedLabel").setFeaturesCol("indexedFeatures").setNumTrees(100)
 
@@ -162,41 +210,55 @@ val labelConverter = new IndexToString().setInputCol("prediction").setOutputCol(
 
 val pipeline = new Pipeline().setStages(Array(labelIndexer, featureIndexer, rf, labelConverter))
 
-val model = pipeline.fit(trainingData)
+val model = pipeline.fit(taData)
+
+val predictions = model.transform(teData)
+
+
+//ACP (PCA EN ANGLAIS)
+
+import org.apache.spark.ml.feature.PCA
+import org.apache.spark.ml.linalg.Vectors
+
+
+val pca = new PCA().setInputCol("features").setOutputCol("pcaFeatures").setK(50).fit(data_numeric)
+
+val pcaDF = pca.transform(data_numeric)
+val result = pcaDF.select("Id", "label", "pcaFeatures")
+result.show()
+
+val data = result
+
+val layers = Array[Int](50, 50, 50, 2)
+
+//NEURAL NETWORK:
+import org.apache.spark.ml.classification.MultilayerPerceptronClassifier
+import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
+
+val layers = Array[Int](numericalFeatColNames.length, 20, 2)
+
+val trainer = new MultilayerPerceptronClassifier().setLayers(layers).setBlockSize(128).setSeed(1234L).setMaxIter(100)
+
+val data2 = data.select("label", "pcaFeatures").toDF("label", "features")
+
+val model = trainer.fit(taData)
+
+val result = model.transform(teData)
+
+result.filter(result("prediction")===1.toDouble).show()
+// train the model
+
 
 //TEST:
 
-val predictions = model.transform(testData)
 
-predictions.select("predictedLabel", "indexedLabel", "ListFeatures").show(5)
+predictions.select("predictedLabel", "indexedLabel", "features").show(5)
 
 //val evaluator = new MulticlassClassificationEvaluator().setLabelCol("indexedLabel").setPredictionCol("prediction").setMetricName("accuracy")
 //val accuracy = evaluator.evaluate(predictions)
 
 val predictions2 = predictions.withColumn("diff", abs($"prediction" - $"response"))
 
-val accuracy = predictions2.groupBy($"newCol").agg(countError($"prediction", $"response"))
 
-
-
-
-//A FAIRE: l'ensemble des features.
-val all_features = list_features.drop(1) ++ features_numeric2.drop(1)
-
-//A FAIRE: Joindre les catégorielles avec les numériques. On met le vecteur sur une colonne, pour mofifier les nulles.
-val RDDnumeric_features_FEATURES_value = RDDnumeric3.map(line => mapTo_FEATURES_id_value(line, nbFeatures_broadcast.value, features_numeric2_brodcast.value))
-val RDDnumeric_all_values_FEATURE_id_value = RDDnumeric_features_FEATURES_value.flatMap(element => element).persist(StorageLevel.MEMORY_AND_DISK_SER )
-
-
-//A FAIRE: Trouver quoi faire des nulles, y a t il des valeurs négatives? == 0?
-val without_nulles_values = 
-
-//A FAIRE: Voir si on peut utiliser les datas dates (temps entre 2 features)
-
-
-//Extractione des données dates (juste ID et Response)
-
-val RDDnumeric1 = sc.textFile("/train_numeric50.csv", 64)
-val RDDnumeric2 = RDDnumeric1.mapPartitionsWithIndex { (idx, iter) => if (idx == 0) iter.drop(1) else iter }
-val RDDnumeric3 = RDDnumeric2.map(mapSplitString)
-val RDDnumeric4 = RDDnumeric3.zipWithIndex
+//COmpter le nombre d'éléments différents trouvés dans chaque feature
+val df_nbe = DFnumeric_id_feature_response_value.groupBy("feature").agg(countDifferentElements($"value"))
