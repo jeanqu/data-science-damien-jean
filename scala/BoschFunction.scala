@@ -127,6 +127,7 @@ def addTwoArray(a1: Array[Double], a2: Array[Double]) = {
 	}
 	lineReturn
 }
+
 def constructOneElementOfMatriceLigne(j1: Array[Double], j2: Array[Double], array_fSumLine: Array[Double], sumj1: Double, sumj2: Double) = {
 	var sum = 0.toDouble
 	for (i <- 0 to j1.length-1) 
@@ -135,22 +136,76 @@ def constructOneElementOfMatriceLigne(j1: Array[Double], j2: Array[Double], arra
 	}
 	sum - sumj1
 }
+
+//fonction pour le combine du calcul de la mattrice de distance de Chi
+
+
+type schiTable = Array[Array[Double]]
+type type_ID_value_sum = (Long, (Array[Double], Double))
+
+def addTwoMatrix(a1: schiTable, a2: schiTable) = {
+	var lineReturn = new Array[Double] (a1.length)
+	var matrixReturn = new schiTable (a1.length)
+	for (l <- 0 to a1.length-1) 
+	{
+		for (i <- 0 to a1.length-1) 
+		{
+			lineReturn(i) = a1(l)(i) + a2(l)(i)
+		}
+		matrixReturn(l) = lineReturn
+	}
+	matrixReturn
+}
+
 def calculOneIterationChi2(fij1: Double, fij2: Double, fi: Double, fj2: Double) = {
 	fij1 * fij2 / (fi * fj2)
 }
 
-def initializeChiLineCalcul(j1: Array[Double], j2: Array[Double], array_fSumLine: Array[Double], array_fSumcol: Array[Double]) = {
-	var lineReturn = new Array[Double] (j1.length)
-	var matrixReturn = new Array[Array[Double]] (j1.length)
-	for (l <- 0 to j1.length-1) 
+def initializeChiLineCalcul(lineValue: Array[Double], sumLine: Double, array_fSumcol: Array[Double]) = {
+	var lineReturn = new Array[Double] (lineValue.length)
+	var matrixReturn = new schiTable (lineValue.length)
+	for (l <- 0 to lineValue.length-1) 
 	{
-		for (i <- 0 to j1.length-1) 
+		for (i <- 0 to lineValue.length-1) 
 		{
-			lineReturn(i) = calculOneIterationChi2(j1(l), j1(i), ???, array_fSumcol(i))
+			lineReturn(i) = calculOneIterationChi2(lineValue(l), lineValue(i), sumLine, array_fSumcol(i))
 		}
 		matrixReturn(l) = lineReturn
 	}
+	matrixReturn
 }
+
+def addNewChiValue(arrayinit: schiTable, lineValue: Array[Double], sumLine: Double, array_fSumcol: Array[Double]) = {
+	var lineReturn = new Array[Double] (lineValue.length)
+	var matrixReturn = new schiTable (lineValue.length)
+	for (l <- 0 to lineValue.length-1) 
+	{
+		for (i <- 0 to lineValue.length-1) 
+		{
+			lineReturn(i) = arrayinit(l)(i) + calculOneIterationChi2(lineValue(l), lineValue(i), sumLine, array_fSumcol(i))
+		}
+		matrixReturn(l) = lineReturn
+	}
+	matrixReturn
+}
+
+//Return an Array from the subtraction of an array and his zip index
+def subTwoArrayWithIndex(a1_index: (Array[Double], Long), a2: Array[Double]) = {
+	var lineReturn = new Array[Double] (a1_index._1.length)
+	for (i <- 0 to a1_index._1.length - 1) 
+	{
+		lineReturn(i) = a1_index._1(i) - a2(a1_index._2.toInt)
+	}
+	lineReturn
+}
+
+//profilLine_ID_value_sum.map(line => (1, line)).combineByKey(
+//																(line: type_ID_value_sum) => initializeChiLineCalcul(line._2._1, line._2._2, fSumColonne.value) , 
+//																(acc: schiTable , new_line: type_ID_value_sum) => addNewChiValue(acc, new_line._2._1, new_line._2._2, fSumColonne.value) ,
+//																addTwoMatrix
+//															)
+
+
 def constructMatriceLigne(line: Array[Double], lineSum: Array[Double], colonneSum: Array[Double]) = {
 	var lineReturn = new Array[Double] (line.length)
 	for (i <- 0 to a1.length-1) 

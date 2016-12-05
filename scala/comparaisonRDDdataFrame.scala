@@ -13,6 +13,8 @@ val spark = SparkSession.builder().appName("Spark SQL basic example").config("sp
 :load BoschFunction.scala
 :load packages/myUDF
 
+val RDDinitiales = sc.textFile("/train_numeric200.csv", 64)
+RDDinitiales.count
 
 val RDDinitiales = sc.textFile("/train_categorical50.csv", 64)
 val list_features0 = RDDinitiales.take(1)
@@ -102,7 +104,7 @@ val nbFeatures_broadcast_num = sc.broadcast(nb_feature_num)
 //RDD
 val RDDnumeric_ID_response = RDDnumeric3.map(line => (line(0), line(nbFeatures_broadcast_num.value-1)))
 
-val RDD_ID_allvalues = RDD1.map(line => ("a", line.slice(1, nbFeatures_broadcast.value)))
+val RDD_ID_allvalues = RDD1.map(line => ("a", line.slice(1, nbFeatures_broadcast.value))).
 
 val RDD_ID_allvalues_response = RDD_ID_allvalues.join(RDDnumeric_ID_response).persist(StorageLevel.MEMORY_AND_DISK_SER)
 

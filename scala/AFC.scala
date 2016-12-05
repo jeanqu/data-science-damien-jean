@@ -124,8 +124,7 @@ Array(52.00, 15.00, 44.00),
 Array(33.00, 15.00, 63.00), 
 Array(6.00, 1.00, 8.00))
 
-val data = Array(
-	("ARIE", Array(870, 330, 730, 680, 470, 890)),
+val data = Array(("ARIE", Array(870, 330, 730, 680, 470, 890)),
 	("AVER", Array(820, 1260, 2460, 3330, 2170, 2960)),
 	("H.G.", Array(2290, 1070, 1420, 1830, 1260, 2330)),
 	("GERS", Array(1650, 890, 1350, 2540, 2090, 3230)),
@@ -133,6 +132,17 @@ val data = Array(
 	("H.P.", Array(2110, 1170, 1640, 1500, 550, 430)),
 	("TARN", Array(1770, 820, 1260, 2010, 1680, 2090)),
 	("T.G.", Array(1740, 920, 1560, 2210, 990, 1240))
+)
+
+val data = Array(
+	("FR 870, 330, 730, 680, 470, 890"),
+	("ESP 820, 1260, 2460, 3330, 2170, 2960"),
+	("PLN 2290, 1070, 1420, 1830, 1260, 2330"),
+	("EEU 1650, 890, 1350, 2540, 2090, 3230"),
+	("GER 1940, 1130, 1750, 1660, 770, 1140"),
+	("CHI 2110, 1170, 1640, 1500, 550, 430"),
+	("ESP 1770, 820, 1260, 2010, 1680, 2090"),
+	("CHN 1740, 920, 1560, 2210, 990, 1240")
 )
 
 val dataRDDinit = sc.parallelize(data, 2)
@@ -173,6 +183,21 @@ val mat = new RowMatrix(dataVector)
 val (pc, explainedVariance) = mat.computePrincipalComponentsAndExplainedVariance(3)
 
 //val dataVec = data.map(line => Vectors.dense(line))
+
+import org.apache.spark.mllib.linalg._
+import org.apache.spark.mllib.linalg.distributed.RowMatrix
+
+val chi2Array = profilLine_ID_value_sum.map(line => (1, line)).combineByKey(
+																				(line: type_ID_value_sum) => initializeChiLineCalcul(line._2._1, line._2._2, fSumColonne.value) , 
+																				(acc: schiTable , new_line: type_ID_value_sum) => addNewChiValue(acc, new_line._2._1, new_line._2._2, fSumColonne.value) ,
+																				addTwoMatrix
+																			)
+									    .map(line => line._2)
+									    .map(matrix => matrix.map(line => subTwoArray(line, fSumLine.value)))
+
+val RDD_chi2Array = sc.parallelize(chi2Array.take(1)(0))
+
+val (pc, explainedVariance) = mat.computePrincipalComponentsAndExplainedVariance(k)
 
 import breeze.linalg.{axpy => brzAxpy, inv, svd => brzSvd, DenseMatrix => BDM, DenseVector => BDV, MatrixSingularException, SparseVector => BSV}
 import breeze.numerics.{sqrt => brzSqrt}

@@ -1,7 +1,7 @@
 ----------------------------------------------------------------
-Tue Nov 15 17:49:46 CET 2016:
-Booting Derby version The Apache Software Foundation - Apache Derby - 10.12.1.1 - (1704137): instance a816c00e-0158-68e4-f7e5-00001a7aac40 
-on database directory /home/ubuntu/Documents/Bosh/data-science-damien-jean/scala/metastore_db with class loader org.apache.spark.sql.hive.client.IsolatedClientLoader$$anon$1@21f03d7f 
+Wed Nov 23 09:32:08 CET 2016:
+Booting Derby version The Apache Software Foundation - Apache Derby - 10.12.1.1 - (1704137): instance a816c00e-0158-9050-4065-00000cda5918 
+on database directory /home/ubuntu/Documents/Bosh/data-science-damien-jean/scala/metastore_db with class loader org.apache.spark.sql.hive.client.IsolatedClientLoader$$anon$1@2070f2cd 
 Loaded from file:/usr/local/spark/jars/derby-10.12.1.1.jar
 java.vendor=Oracle Corporation
 java.runtime.version=1.8.0_111-8u111-b14-2ubuntu0.16.04.2-b14

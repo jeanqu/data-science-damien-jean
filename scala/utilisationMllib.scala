@@ -31,9 +31,11 @@ val RDD_all_values_FEATURE_id_value = RDD_features_FEATURES_value.flatMap(elemen
 
 //Extractione des données dates (juste ID et Response)
 
-val RDDnumeric1 = sc.textFile("/train_numeric50.csv", 64)
+val RDDnumeric1 = sc.textFile("/train_numeric200.csv", 64)
 val RDDnumeric2 = RDDnumeric1.mapPartitionsWithIndex { (idx, iter) => if (idx == 0) iter.drop(1) else iter }
 val RDDnumeric3 = RDDnumeric2.map(mapSplitString)
+val RDDnumeric3_corrected = RDDnumeric3.filter(line => line(0) != "Id")
+
 val RDDnumeric4 = RDDnumeric3.zipWithIndex
 
 //On veut juste sélectionner la colonne ID et la colonne réponse 
@@ -43,7 +45,7 @@ val features_numeric2_brodcast = sc.broadcast(features_numeric2)
 val nb_feature_num = features_numeric2.length
 val nbFeatures_broadcast_num = sc.broadcast(nb_feature_num)
 
-val RDDnumeric_id_feature_response_value = RDDnumeric3.map(line => mapTo_id_feature_response_value(line, nbFeatures_broadcast_num.value, features_numeric2_brodcast.value))
+val RDDnumeric_id_feature_response_value = RDDnumeric3_corrected.map(line => mapTo_id_feature_response_value(line, nbFeatures_broadcast_num.value, features_numeric2_brodcast.value))
 val RDDnumeric_all_id_feature_response_value = RDDnumeric_id_feature_response_value.flatMap(element => element)
 val DFnumeric_id_feature_response_value = RDDnumeric_all_id_feature_response_value.toDF("Id", "feature", "response", "value")
 
@@ -107,8 +109,8 @@ import org.apache.spark.ml.feature.{IndexToString, StringIndexer, VectorIndexer}
 import org.apache.spark.ml.feature.{OneHotEncoder, StringIndexer}
 
 import org.apache.spark.ml.feature.VectorAssembler
-import org.apache.spark.ml.linalg.Vectors
-
+import org.apache.spark.ml.linalg.Vector
+s
 
 
 //val data = DF_id_response_patternFeatureArray
@@ -215,13 +217,13 @@ val model = pipeline.fit(taData)
 val predictions = model.transform(teData)
 
 
-//ACP (PCA EN ANGLAIS)
+//ACP (PCA EN ANGLAIS) (Avec ML)
 
-import org.apache.spark.ml.feature.PCA
+import org.apache.spark.ml.feature.{ PCA => MlPCA}
 import org.apache.spark.ml.linalg.Vectors
 
 
-val pca = new PCA().setInputCol("features").setOutputCol("pcaFeatures").setK(50).fit(data_numeric)
+val pca = new MlPCA().setInputCol("features").setOutputCol("pcaFeatures").setK(50).fit(data_numeric)
 
 val pcaDF = pca.transform(data_numeric)
 val result = pcaDF.select("Id", "label", "pcaFeatures")
@@ -230,6 +232,30 @@ result.show()
 val data = result
 
 val layers = Array[Int](50, 50, 50, 2)
+
+//ACP (PCA), avec MLLIB
+import org.apache.spark.mllib.feature.{ PCA => MllibPCA}
+import org.apache.spark.mllib.linalg.{Vectors => MllibVectors}
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.rdd.RDD
+
+import org.apache.spark.mllib.linalg.Matrix
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.linalg.distributed.RowMatrix
+
+val withoutEmpty = RDDnumeric3_corrected.map(line => line.map(convertOneElemToDouble))
+
+val withoutEmpty_key_value = withoutEmpty.map(line => (line(0), line.drop(1)))
+
+val toVector = withoutEmpty_key_value.map(line => MllibVectors.dense(line._2))
+
+val labbl = toVector.map(vec => new LabeledPoint(0, vec)) 
+
+val pca = new MllibPCA(50).fit(labbl.map(_.features))
+
+val projected = labbl.map(p => p.copy(features = pca.transform(p.features)))
+
+
 
 //NEURAL NETWORK:
 import org.apache.spark.ml.classification.MultilayerPerceptronClassifier
